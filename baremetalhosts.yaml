@@ -1,0 +1,32 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HetznerBareMetalHost
+metadata:
+  name: "bm-0"
+spec:
+  serverID: 1602006
+  rootDeviceHints:
+    wwn: "eui.0025388801b4dff2"
+  maintenanceMode: false
+  description: Test Machine 0
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HetznerBareMetalHost
+metadata:
+  name: "bm-1"
+spec:
+  serverID: 1602020
+  rootDeviceHints:
+    wwn: "eui.002538b711b8ff09"
+  maintenanceMode: false
+  description: Test Machine 1
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: HetznerBareMetalHost
+metadata:
+  name: "bm-2"
+spec:
+  serverID: 1602230
+  rootDeviceHints:
+    wwn: "eui.00000000000000018ce38e01000ab288"
+  maintenanceMode: false
+  description: Test Machine 2
