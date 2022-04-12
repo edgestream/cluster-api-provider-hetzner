@@ -22,16 +22,18 @@ import (
 )
 
 var _ = Describe("[Management Upgrade] Running the Cluster API E2E tests", func() {
-	Context("Running the clusterctl upgrade spec on a cluster with hetzner-ccm", func() {
-		capi_e2e.ClusterctlUpgradeSpec(ctx, func() capi_e2e.ClusterctlUpgradeSpecInput {
-			return capi_e2e.ClusterctlUpgradeSpecInput{
-				E2EConfig:             e2eConfig,
-				ClusterctlConfigPath:  clusterctlConfigPath,
-				BootstrapClusterProxy: bootstrapClusterProxy,
-				ArtifactFolder:        artifactFolder,
-				SkipCleanup:           skipCleanup,
-				WorkloadFlavor:        "",
-			}
+	Context("[Needs Published Image] Running tests that require published images", func() {
+		Context("Running the clusterctl upgrade spec on a cluster with hetzner-ccm", func() {
+			capi_e2e.ClusterctlUpgradeSpec(ctx, func() capi_e2e.ClusterctlUpgradeSpecInput {
+				return capi_e2e.ClusterctlUpgradeSpecInput{
+					E2EConfig:             e2eConfig,
+					ClusterctlConfigPath:  clusterctlConfigPath,
+					BootstrapClusterProxy: bootstrapClusterProxy,
+					ArtifactFolder:        artifactFolder,
+					SkipCleanup:           skipCleanup,
+					WorkloadFlavor:        "",
+				}
+			})
 		})
 	})
 })

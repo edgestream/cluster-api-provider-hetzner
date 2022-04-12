@@ -136,86 +136,43 @@ func CaphClusterDeploymentSpec(ctx context.Context, inputGetter func() CaphClust
 			WaitForMachineDeployments:    input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
 		}, clusterResources)
 
-		ginkgo.It("Should successfully trigger machine deployment remediation", func() {
-			ginkgo.By("Creating a workload cluster")
-
-			clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
-				ClusterProxy: input.BootstrapClusterProxy,
-				ConfigCluster: clusterctl.ConfigClusterInput{
-					LogFolder:                filepath.Join(input.ArtifactFolder, "clusters", input.BootstrapClusterProxy.GetName()),
-					ClusterctlConfigPath:     input.ClusterctlConfigPath,
-					KubeconfigPath:           input.BootstrapClusterProxy.GetKubeconfigPath(),
-					InfrastructureProvider:   clusterctl.DefaultInfrastructureProvider,
-					Flavor:                   "",
-					Namespace:                namespace.Name,
-					ClusterName:              fmt.Sprintf("%s-%s", specName, util.RandomString(6)),
-					KubernetesVersion:        input.E2EConfig.GetVariable(KubernetesVersion),
-					ControlPlaneMachineCount: pointer.Int64Ptr(1),
-					WorkerMachineCount:       pointer.Int64Ptr(1),
-				},
-				WaitForClusterIntervals:      input.E2EConfig.GetIntervals(specName, "wait-cluster"),
-				WaitForControlPlaneIntervals: input.E2EConfig.GetIntervals(specName, "wait-control-plane"),
-				WaitForMachineDeployments:    input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
-			}, clusterResources)
-
-			ginkgo.By("Setting a machine unhealthy and wait for MachineDeployment remediation")
-			framework.DiscoverMachineHealthChecksAndWaitForRemediation(ctx, framework.DiscoverMachineHealthCheckAndWaitForRemediationInput{
-				ClusterProxy:              input.BootstrapClusterProxy,
-				Cluster:                   clusterResources.Cluster,
-				WaitForMachineRemediation: input.E2EConfig.GetIntervals(specName, "wait-machine-remediation"),
-			})
+		ginkgo.By("Setting a machine unhealthy and wait for MachineDeployment remediation, it Should successfully trigger machine deployment remediation")
+		framework.DiscoverMachineHealthChecksAndWaitForRemediation(ctx, framework.DiscoverMachineHealthCheckAndWaitForRemediationInput{
+			ClusterProxy:              input.BootstrapClusterProxy,
+			Cluster:                   clusterResources.Cluster,
+			WaitForMachineRemediation: input.E2EConfig.GetIntervals(specName, "wait-machine-remediation"),
 		})
 
-		ginkgo.It("Should successfully trigger KCP remediation", func() {
-			ginkgo.By("Creating a workload cluster")
-			clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
-				ClusterProxy: input.BootstrapClusterProxy,
-				ConfigCluster: clusterctl.ConfigClusterInput{
-					LogFolder:                filepath.Join(input.ArtifactFolder, "clusters", input.BootstrapClusterProxy.GetName()),
-					ClusterctlConfigPath:     input.ClusterctlConfigPath,
-					KubeconfigPath:           input.BootstrapClusterProxy.GetKubeconfigPath(),
-					InfrastructureProvider:   clusterctl.DefaultInfrastructureProvider,
-					Flavor:                   "",
-					Namespace:                namespace.Name,
-					ClusterName:              fmt.Sprintf("%s-%s", specName, util.RandomString(6)),
-					KubernetesVersion:        input.E2EConfig.GetVariable(KubernetesVersion),
-					ControlPlaneMachineCount: pointer.Int64Ptr(3),
-					WorkerMachineCount:       pointer.Int64Ptr(1),
-				},
-				WaitForClusterIntervals:      input.E2EConfig.GetIntervals(specName, "wait-cluster"),
-				WaitForControlPlaneIntervals: input.E2EConfig.GetIntervals(specName, "wait-control-plane"),
-				WaitForMachineDeployments:    input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
-			}, clusterResources)
+		ginkgo.By("Creating a workload cluster, it should successfully trigger KCP remediation")
+		clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
+			ClusterProxy: input.BootstrapClusterProxy,
+			ConfigCluster: clusterctl.ConfigClusterInput{
+				LogFolder:                filepath.Join(input.ArtifactFolder, "clusters", input.BootstrapClusterProxy.GetName()),
+				ClusterctlConfigPath:     input.ClusterctlConfigPath,
+				KubeconfigPath:           input.BootstrapClusterProxy.GetKubeconfigPath(),
+				InfrastructureProvider:   clusterctl.DefaultInfrastructureProvider,
+				Flavor:                   "",
+				Namespace:                namespace.Name,
+				ClusterName:              fmt.Sprintf("%s-%s", specName, util.RandomString(6)),
+				KubernetesVersion:        input.E2EConfig.GetVariable(KubernetesVersion),
+				ControlPlaneMachineCount: pointer.Int64Ptr(3),
+				WorkerMachineCount:       pointer.Int64Ptr(1),
+			},
+			WaitForClusterIntervals:      input.E2EConfig.GetIntervals(specName, "wait-cluster"),
+			WaitForControlPlaneIntervals: input.E2EConfig.GetIntervals(specName, "wait-control-plane"),
+			WaitForMachineDeployments:    input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
+		}, clusterResources)
 
-			ginkgo.By("Setting a machine unhealthy and wait for KubeadmControlPlane remediation")
-			framework.DiscoverMachineHealthChecksAndWaitForRemediation(ctx, framework.DiscoverMachineHealthCheckAndWaitForRemediationInput{
-				ClusterProxy:              input.BootstrapClusterProxy,
-				Cluster:                   clusterResources.Cluster,
-				WaitForMachineRemediation: input.E2EConfig.GetIntervals(specName, "wait-machine-remediation"),
-			})
+		ginkgo.By("Setting a machine unhealthy and wait for KubeadmControlPlane remediation")
+		framework.DiscoverMachineHealthChecksAndWaitForRemediation(ctx, framework.DiscoverMachineHealthCheckAndWaitForRemediationInput{
+			ClusterProxy:              input.BootstrapClusterProxy,
+			Cluster:                   clusterResources.Cluster,
+			WaitForMachineRemediation: input.E2EConfig.GetIntervals(specName, "wait-machine-remediation"),
 		})
 
 		ginkgo.It("A node should be forcefully removed if it cannot be drained in time", func() {
 			ginkgo.By("Creating a workload cluster")
 			controlPlaneReplicas := 3
-			clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
-				ClusterProxy: input.BootstrapClusterProxy,
-				ConfigCluster: clusterctl.ConfigClusterInput{
-					LogFolder:                filepath.Join(input.ArtifactFolder, "clusters", input.BootstrapClusterProxy.GetName()),
-					ClusterctlConfigPath:     input.ClusterctlConfigPath,
-					KubeconfigPath:           input.BootstrapClusterProxy.GetKubeconfigPath(),
-					InfrastructureProvider:   clusterctl.DefaultInfrastructureProvider,
-					Flavor:                   "",
-					Namespace:                namespace.Name,
-					ClusterName:              fmt.Sprintf("%s-%s", specName, util.RandomString(6)),
-					KubernetesVersion:        input.E2EConfig.GetVariable(KubernetesVersion),
-					ControlPlaneMachineCount: pointer.Int64Ptr(int64(controlPlaneReplicas)),
-					WorkerMachineCount:       pointer.Int64Ptr(1),
-				},
-				WaitForClusterIntervals:      input.E2EConfig.GetIntervals(specName, "wait-cluster"),
-				WaitForControlPlaneIntervals: input.E2EConfig.GetIntervals(specName, "wait-control-plane"),
-				WaitForMachineDeployments:    input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
-			}, clusterResources)
 			cluster := clusterResources.Cluster
 			controlplane = clusterResources.ControlPlane
 			machineDeployments = clusterResources.MachineDeployments
