@@ -129,6 +129,135 @@ func CaphClusterDeploymentSpec(ctx context.Context, inputGetter func() CaphClust
 			WaitForControlPlaneIntervals: input.E2EConfig.GetIntervals(specName, "wait-control-plane"),
 			WaitForMachineDeployments:    input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
 		}, clusterResources)
+
+		ginkgo.It("Should successfully trigger machine deployment remediation", func() {
+			ginkgo.By("Creating a workload cluster")
+
+			clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
+				ClusterProxy: input.BootstrapClusterProxy,
+				ConfigCluster: clusterctl.ConfigClusterInput{
+					LogFolder:                filepath.Join(input.ArtifactFolder, "clusters", input.BootstrapClusterProxy.GetName()),
+					ClusterctlConfigPath:     input.ClusterctlConfigPath,
+					KubeconfigPath:           input.BootstrapClusterProxy.GetKubeconfigPath(),
+					InfrastructureProvider:   clusterctl.DefaultInfrastructureProvider,
+					Flavor:                   pointer.StringDeref(input.MDFlavor, "md-remediation"),
+					Namespace:                namespace.Name,
+					ClusterName:              fmt.Sprintf("%s-%s", specName, util.RandomString(6)),
+					KubernetesVersion:        input.E2EConfig.GetVariable(KubernetesVersion),
+					ControlPlaneMachineCount: pointer.Int64Ptr(1),
+					WorkerMachineCount:       pointer.Int64Ptr(1),
+				},
+				WaitForClusterIntervals:      input.E2EConfig.GetIntervals(specName, "wait-cluster"),
+				WaitForControlPlaneIntervals: input.E2EConfig.GetIntervals(specName, "wait-control-plane"),
+				WaitForMachineDeployments:    input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
+			}, clusterResources)
+
+			ginkgo.By("Setting a machine unhealthy and wait for MachineDeployment remediation")
+			framework.DiscoverMachineHealthChecksAndWaitForRemediation(ctx, framework.DiscoverMachineHealthCheckAndWaitForRemediationInput{
+				ClusterProxy:              input.BootstrapClusterProxy,
+				Cluster:                   clusterResources.Cluster,
+				WaitForMachineRemediation: input.E2EConfig.GetIntervals(specName, "wait-machine-remediation"),
+			})
+		})
+
+		ginkgo.It("Should successfully trigger KCP remediation", func() {
+			ginkgo.By("Creating a workload cluster")
+			clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
+				ClusterProxy: input.BootstrapClusterProxy,
+				ConfigCluster: clusterctl.ConfigClusterInput{
+					LogFolder:                filepath.Join(input.ArtifactFolder, "clusters", input.BootstrapClusterProxy.GetName()),
+					ClusterctlConfigPath:     input.ClusterctlConfigPath,
+					KubeconfigPath:           input.BootstrapClusterProxy.GetKubeconfigPath(),
+					InfrastructureProvider:   clusterctl.DefaultInfrastructureProvider,
+					Flavor:                   pointer.StringDeref(input.KCPFlavor, "kcp-remediation"),
+					Namespace:                namespace.Name,
+					ClusterName:              fmt.Sprintf("%s-%s", specName, util.RandomString(6)),
+					KubernetesVersion:        input.E2EConfig.GetVariable(KubernetesVersion),
+					ControlPlaneMachineCount: pointer.Int64Ptr(3),
+					WorkerMachineCount:       pointer.Int64Ptr(1),
+				},
+				WaitForClusterIntervals:      input.E2EConfig.GetIntervals(specName, "wait-cluster"),
+				WaitForControlPlaneIntervals: input.E2EConfig.GetIntervals(specName, "wait-control-plane"),
+				WaitForMachineDeployments:    input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
+			}, clusterResources)
+
+			By("Setting a machine unhealthy and wait for KubeadmControlPlane remediation")
+			framework.DiscoverMachineHealthChecksAndWaitForRemediation(ctx, framework.DiscoverMachineHealthCheckAndWaitForRemediationInput{
+				ClusterProxy:              input.BootstrapClusterProxy,
+				Cluster:                   clusterResources.Cluster,
+				WaitForMachineRemediation: input.E2EConfig.GetIntervals(specName, "wait-machine-remediation"),
+			})
+		})
+
+		ginkgo.It("A node should be forcefully removed if it cannot be drained in time", func() {
+			ginkgo.By("Creating a workload cluster")
+			controlPlaneReplicas := 3
+			clusterctl.ApplyClusterTemplateAndWait(ctx, clusterctl.ApplyClusterTemplateAndWaitInput{
+				ClusterProxy: input.BootstrapClusterProxy,
+				ConfigCluster: clusterctl.ConfigClusterInput{
+					LogFolder:                filepath.Join(input.ArtifactFolder, "clusters", input.BootstrapClusterProxy.GetName()),
+					ClusterctlConfigPath:     input.ClusterctlConfigPath,
+					KubeconfigPath:           input.BootstrapClusterProxy.GetKubeconfigPath(),
+					InfrastructureProvider:   clusterctl.DefaultInfrastructureProvider,
+					Flavor:                   pointer.StringDeref(input.Flavor, "node-drain"),
+					Namespace:                namespace.Name,
+					ClusterName:              fmt.Sprintf("%s-%s", specName, util.RandomString(6)),
+					KubernetesVersion:        input.E2EConfig.GetVariable(KubernetesVersion),
+					ControlPlaneMachineCount: pointer.Int64Ptr(int64(controlPlaneReplicas)),
+					WorkerMachineCount:       pointer.Int64Ptr(1),
+				},
+				WaitForClusterIntervals:      input.E2EConfig.GetIntervals(specName, "wait-cluster"),
+				WaitForControlPlaneIntervals: input.E2EConfig.GetIntervals(specName, "wait-control-plane"),
+				WaitForMachineDeployments:    input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
+			}, clusterResources)
+			cluster := clusterResources.Cluster
+			controlplane = clusterResources.ControlPlane
+			machineDeployments = clusterResources.MachineDeployments
+			ginkgo.Expect(machineDeployments[0].Spec.Replicas).To(Equal(pointer.Int32Ptr(1)))
+
+			ginkgo.By("Add a deployment with unevictable pods and podDisruptionBudget to the workload cluster. The deployed pods cannot be evicted in the node draining process.")
+			workloadClusterProxy := input.BootstrapClusterProxy.GetWorkloadCluster(ctx, cluster.Namespace, cluster.Name)
+			framework.DeployUnevictablePod(ctx, framework.DeployUnevictablePodInput{
+				WorkloadClusterProxy:               workloadClusterProxy,
+				DeploymentName:                     fmt.Sprintf("%s-%s", "unevictable-pod", util.RandomString(3)),
+				Namespace:                          namespace.Name + "-unevictable-workload",
+				WaitForDeploymentAvailableInterval: input.E2EConfig.GetIntervals(specName, "wait-deployment-available"),
+			})
+
+			ginkgo.By("Scale the machinedeployment down to zero. If we didn't have the NodeDrainTimeout duration, the node drain process would block this operator.")
+			// Because all the machines of a machinedeployment can be deleted at the same time, so we only prepare the interval for 1 replica.
+			nodeDrainTimeoutMachineDeploymentInterval := getDrainAndDeleteInterval(input.E2EConfig.GetIntervals(specName, "wait-machine-deleted"), machineDeployments[0].Spec.Template.Spec.NodeDrainTimeout, 1)
+			for _, md := range machineDeployments {
+				framework.ScaleAndWaitMachineDeployment(ctx, framework.ScaleAndWaitMachineDeploymentInput{
+					ClusterProxy:              input.BootstrapClusterProxy,
+					Cluster:                   cluster,
+					MachineDeployment:         md,
+					WaitForMachineDeployments: nodeDrainTimeoutMachineDeploymentInterval,
+					Replicas:                  0,
+				})
+			}
+
+			ginkgo.By("Deploy deployment with unevictable pods on control plane nodes.")
+			framework.DeployUnevictablePod(ctx, framework.DeployUnevictablePodInput{
+				WorkloadClusterProxy:               workloadClusterProxy,
+				ControlPlane:                       controlplane,
+				DeploymentName:                     fmt.Sprintf("%s-%s", "unevictable-pod", util.RandomString(3)),
+				Namespace:                          namespace.Name + "-unevictable-workload",
+				WaitForDeploymentAvailableInterval: input.E2EConfig.GetIntervals(specName, "wait-deployment-available"),
+			})
+
+			ginkgo.By("Scale down the controlplane of the workload cluster and make sure that nodes running workload can be deleted even the draining process is blocked.")
+			// When we scale down the KCP, controlplane machines are by default deleted one by one, so it requires more time.
+			nodeDrainTimeoutKCPInterval := getDrainAndDeleteInterval(input.E2EConfig.GetIntervals(specName, "wait-machine-deleted"), controlplane.Spec.MachineTemplate.NodeDrainTimeout, controlPlaneReplicas)
+			framework.ScaleAndWaitControlPlane(ctx, framework.ScaleAndWaitControlPlaneInput{
+				ClusterProxy:        input.BootstrapClusterProxy,
+				Cluster:             cluster,
+				ControlPlane:        controlplane,
+				Replicas:            1,
+				WaitForControlPlane: nodeDrainTimeoutKCPInterval,
+			})
+		})
+
 		ginkgo.By("PASSED!")
 	})
 

@@ -17,40 +17,21 @@ limitations under the License.
 package e2e
 
 import (
-	"context"
-
 	. "github.com/onsi/ginkgo"
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
 var _ = Describe("[Management Upgrade] Running the Cluster API E2E tests", func() {
-	ctx := context.TODO()
-
-	Context("[Needs Published Image] Running tests that require published images", func() {
-		Context("Running the clusterctl upgrade spec on a cluster with packet-ccm", func() {
-			capi_e2e.ClusterctlUpgradeSpec(ctx, func() capi_e2e.ClusterctlUpgradeSpecInput {
-				return capi_e2e.ClusterctlUpgradeSpecInput{
-					E2EConfig:             e2eConfig,
-					ClusterctlConfigPath:  clusterctlConfigPath,
-					BootstrapClusterProxy: bootstrapClusterProxy,
-					ArtifactFolder:        artifactFolder,
-					SkipCleanup:           skipCleanup,
-					WorkloadFlavor:        "packet-ccm",
-				}
-			})
-		})
-
-		Context("Running the clusterctl upgrade spec on a cluster with cpem", func() {
-			capi_e2e.ClusterctlUpgradeSpec(ctx, func() capi_e2e.ClusterctlUpgradeSpecInput {
-				return capi_e2e.ClusterctlUpgradeSpecInput{
-					E2EConfig:             e2eConfig,
-					ClusterctlConfigPath:  clusterctlConfigPath,
-					BootstrapClusterProxy: bootstrapClusterProxy,
-					ArtifactFolder:        artifactFolder,
-					SkipCleanup:           skipCleanup,
-					WorkloadFlavor:        "cpem",
-				}
-			})
+	Context("Running the clusterctl upgrade spec on a cluster with hetzner-ccm", func() {
+		capi_e2e.ClusterctlUpgradeSpec(ctx, func() capi_e2e.ClusterctlUpgradeSpecInput {
+			return capi_e2e.ClusterctlUpgradeSpecInput{
+				E2EConfig:             e2eConfig,
+				ClusterctlConfigPath:  clusterctlConfigPath,
+				BootstrapClusterProxy: bootstrapClusterProxy,
+				ArtifactFolder:        artifactFolder,
+				SkipCleanup:           skipCleanup,
+				WorkloadFlavor:        "",
+			}
 		})
 	})
 })

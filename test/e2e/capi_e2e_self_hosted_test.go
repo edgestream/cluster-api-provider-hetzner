@@ -17,15 +17,11 @@ limitations under the License.
 package e2e
 
 import (
-	"context"
-
 	. "github.com/onsi/ginkgo"
 	capi_e2e "sigs.k8s.io/cluster-api/test/e2e"
 )
 
 var _ = Describe("[Self Hosted] Running the Cluster API E2E self-hosted tests", func() {
-	ctx := context.TODO()
-
 	Context("[Needs Published Image] Running tests that require published images", func() {
 		Context("Running the self-hosted spec", func() {
 			capi_e2e.SelfHostedSpec(ctx, func() capi_e2e.SelfHostedSpecInput {

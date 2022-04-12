@@ -432,7 +432,15 @@ $(E2E_CONF_FILE): $(ENVSUBST) $(E2E_CONF_FILE_SOURCE)
 
 .PHONY: test-e2e
 test-e2e: $(E2E_CONF_FILE) $(if $(SKIP_IMAGE_BUILD),,e2e-image) $(ARTIFACTS)
-	./hack/ci-e2e-capi.sh
+	GINKO_FOKUS="'\[Basic\]'" GINKO_NODES=2 ./hack/ci-e2e-capi.sh
+
+.PHONY: test-e2e-quickstart
+test-e2e-quickstart: $(E2E_CONF_FILE) $(if $(SKIP_IMAGE_BUILD),,e2e-image) $(ARTIFACTS)
+	GINKO_FOKUS="'\[QuickStart\]'" GINKO_NODES=1 ./hack/ci-e2e-capi.sh
+
+.PHONY: test-e2e-self-hosted
+test-e2e-self-hosted: $(E2E_CONF_FILE) $(if $(SKIP_IMAGE_BUILD),,e2e-image) $(ARTIFACTS)
+	GINKO_FOKUS="'\[Self Hosted\]'" GINKO_NODES=1 ./hack/ci-e2e-capi.sh
 
 .PHONY: test
 test: $(SETUP_ENVTEST) ## Run unit and integration tests
