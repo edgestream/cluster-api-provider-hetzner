@@ -21,11 +21,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
+	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	controlplanev1 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
 	"sigs.k8s.io/cluster-api/test/framework"
 	"sigs.k8s.io/cluster-api/test/framework/clusterctl"
 	"sigs.k8s.io/cluster-api/util"
@@ -44,12 +48,14 @@ type CaphClusterDeploymentSpecInput struct {
 // CaphClusterDeploymentSpec implements a test that verifies that MachineDeployment rolling updates are successful.
 func CaphClusterDeploymentSpec(ctx context.Context, inputGetter func() CaphClusterDeploymentSpecInput) {
 	var (
-		specName         = "caph"
-		input            CaphClusterDeploymentSpecInput
-		namespace        *corev1.Namespace
-		cancelWatches    context.CancelFunc
-		clusterResources *clusterctl.ApplyClusterTemplateAndWaitResult
-		clusterName      string
+		specName           = "caph"
+		input              CaphClusterDeploymentSpecInput
+		namespace          *corev1.Namespace
+		cancelWatches      context.CancelFunc
+		clusterResources   *clusterctl.ApplyClusterTemplateAndWaitResult
+		clusterName        string
+		controlplane       *controlplanev1.KubeadmControlPlane
+		machineDeployments []*clusterv1.MachineDeployment
 	)
 
 	ginkgo.BeforeEach(func() {
@@ -140,7 +146,7 @@ func CaphClusterDeploymentSpec(ctx context.Context, inputGetter func() CaphClust
 					ClusterctlConfigPath:     input.ClusterctlConfigPath,
 					KubeconfigPath:           input.BootstrapClusterProxy.GetKubeconfigPath(),
 					InfrastructureProvider:   clusterctl.DefaultInfrastructureProvider,
-					Flavor:                   pointer.StringDeref(input.MDFlavor, "md-remediation"),
+					Flavor:                   "",
 					Namespace:                namespace.Name,
 					ClusterName:              fmt.Sprintf("%s-%s", specName, util.RandomString(6)),
 					KubernetesVersion:        input.E2EConfig.GetVariable(KubernetesVersion),
@@ -169,7 +175,7 @@ func CaphClusterDeploymentSpec(ctx context.Context, inputGetter func() CaphClust
 					ClusterctlConfigPath:     input.ClusterctlConfigPath,
 					KubeconfigPath:           input.BootstrapClusterProxy.GetKubeconfigPath(),
 					InfrastructureProvider:   clusterctl.DefaultInfrastructureProvider,
-					Flavor:                   pointer.StringDeref(input.KCPFlavor, "kcp-remediation"),
+					Flavor:                   "",
 					Namespace:                namespace.Name,
 					ClusterName:              fmt.Sprintf("%s-%s", specName, util.RandomString(6)),
 					KubernetesVersion:        input.E2EConfig.GetVariable(KubernetesVersion),
@@ -181,7 +187,7 @@ func CaphClusterDeploymentSpec(ctx context.Context, inputGetter func() CaphClust
 				WaitForMachineDeployments:    input.E2EConfig.GetIntervals(specName, "wait-worker-nodes"),
 			}, clusterResources)
 
-			By("Setting a machine unhealthy and wait for KubeadmControlPlane remediation")
+			ginkgo.By("Setting a machine unhealthy and wait for KubeadmControlPlane remediation")
 			framework.DiscoverMachineHealthChecksAndWaitForRemediation(ctx, framework.DiscoverMachineHealthCheckAndWaitForRemediationInput{
 				ClusterProxy:              input.BootstrapClusterProxy,
 				Cluster:                   clusterResources.Cluster,
@@ -199,7 +205,7 @@ func CaphClusterDeploymentSpec(ctx context.Context, inputGetter func() CaphClust
 					ClusterctlConfigPath:     input.ClusterctlConfigPath,
 					KubeconfigPath:           input.BootstrapClusterProxy.GetKubeconfigPath(),
 					InfrastructureProvider:   clusterctl.DefaultInfrastructureProvider,
-					Flavor:                   pointer.StringDeref(input.Flavor, "node-drain"),
+					Flavor:                   "",
 					Namespace:                namespace.Name,
 					ClusterName:              fmt.Sprintf("%s-%s", specName, util.RandomString(6)),
 					KubernetesVersion:        input.E2EConfig.GetVariable(KubernetesVersion),
@@ -213,7 +219,7 @@ func CaphClusterDeploymentSpec(ctx context.Context, inputGetter func() CaphClust
 			cluster := clusterResources.Cluster
 			controlplane = clusterResources.ControlPlane
 			machineDeployments = clusterResources.MachineDeployments
-			ginkgo.Expect(machineDeployments[0].Spec.Replicas).To(Equal(pointer.Int32Ptr(1)))
+			gomega.Expect(machineDeployments[0].Spec.Replicas).To(gomega.Equal(pointer.Int32Ptr(1)))
 
 			ginkgo.By("Add a deployment with unevictable pods and podDisruptionBudget to the workload cluster. The deployed pods cannot be evicted in the node draining process.")
 			workloadClusterProxy := input.BootstrapClusterProxy.GetWorkloadCluster(ctx, cluster.Namespace, cluster.Name)
@@ -266,4 +272,13 @@ func CaphClusterDeploymentSpec(ctx context.Context, inputGetter func() CaphClust
 		dumpSpecResourcesAndCleanup(ctx, specName, input.BootstrapClusterProxy, input.ArtifactFolder, namespace, cancelWatches, clusterResources.Cluster, input.E2EConfig.GetIntervals, input.SkipCleanup)
 		redactLogs(input.E2EConfig.GetVariable)
 	})
+}
+
+func getDrainAndDeleteInterval(deleteInterval []interface{}, drainTimeout *metav1.Duration, replicas int) []interface{} {
+	deleteTimeout, err := time.ParseDuration(deleteInterval[0].(string))
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	// We add the drain timeout to the specified delete timeout per replica.
+	intervalDuration := (drainTimeout.Duration + deleteTimeout) * time.Duration(replicas)
+	res := []interface{}{intervalDuration.String(), deleteInterval[1]}
+	return res
 }
